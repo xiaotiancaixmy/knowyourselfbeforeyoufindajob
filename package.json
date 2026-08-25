@@ -1,0 +1,25 @@
+{
+  "name": "know-yourself-before-you-find-a-job",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": ">=3.1.5",
+      "find-my-way": ">=9.7.0"
+    }
+  },
+  "scripts": {
+    "dev": "pnpm --filter @kys/shared build && pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @kys/shared build && pnpm -r test",
+    "check": "pnpm -r check"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "node-gyp": "^11.4.2"
+  }
+}

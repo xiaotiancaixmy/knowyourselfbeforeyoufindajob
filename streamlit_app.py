@@ -29,7 +29,32 @@ REQUIRED_WORKFLOW_METHODS = (
     "should_reveal_fact_completion_gaps",
     "get_fact_completion_panel_note",
     "get_visible_fact_completion_gaps",
+    "get_fact_completion_entry_choices",
 )
+
+
+def inject_global_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        div[data-baseweb="tag"] {
+          max-width: 34ch;
+        }
+
+        div[data-baseweb="tag"] > span {
+          max-width: 34ch;
+        }
+
+        div[data-baseweb="tag"] p {
+          max-width: 30ch;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def get_workflow() -> WorkflowService:
@@ -89,6 +114,18 @@ def get_visible_fact_completion_gaps(workflow: WorkflowService, experience_id: i
     if not should_reveal_fact_completion_gaps(workflow, experience_id):
         return []
     return workflow.repository.list_evidence_gaps(experience_id)
+
+
+def get_fact_completion_entry_choices(workflow: WorkflowService, experience_id: int):
+    if hasattr(workflow, "get_fact_completion_entry_choices"):
+        return workflow.get_fact_completion_entry_choices(experience_id)
+    experience = workflow.repository.get_experience(experience_id)
+    if not experience:
+        return []
+    service = getattr(workflow, "followup_question_service", None)
+    if service and hasattr(service, "build_entry_choices"):
+        return service.build_entry_choices(experience)
+    return []
 
 
 def build_fact_completion_dictation_html(textarea_label: str, mic_button_id: str, status_id: str) -> str:
@@ -376,13 +413,22 @@ def render_fact_completion(workflow: WorkflowService, source_id: int) -> None:
         if should_reveal_fact_completion_gaps(workflow, experience_id):
             st.caption(signal)
         else:
-            st.caption("进入回忆模式。你先像跟招聘官复盘项目一样，把当时的场景讲出来，我来帮你整理亮点和缺口。")
+            st.caption("先把记忆拉回来。你可以先随便讲，也可以先选一个切入口，我来帮你把内容慢慢收敛清楚。")
         st.markdown("---")
         for turn in chat_history:
             with st.chat_message(turn["role"]):
                 st.write(turn["content"])
     with st.container(border=True):
         st.markdown("#### Reply")
+        entry_choices = get_fact_completion_entry_choices(workflow, experience_id)
+        st.caption("如果你一时不知道怎么开口，可以先选一个更接近的切入口。")
+        for index in range(0, len(entry_choices), 2):
+            columns = st.columns(2, gap="small")
+            for column, choice in zip(columns, entry_choices[index:index + 2]):
+                with column:
+                    if st.button(choice.label, key=f"entry-choice-{experience_id}-{index}-{choice.label}", use_container_width=True):
+                        st.session_state[composer.draft_key] = choice.draft
+                        st.rerun()
         with st.form(f"fact-completion-composer-{experience_id}", clear_on_submit=False):
             input_col, mic_col = st.columns([8.8, 1.2], gap="small", vertical_alignment="bottom")
             with input_col:
@@ -391,7 +437,7 @@ def render_fact_completion(workflow: WorkflowService, source_id: int) -> None:
                     key=composer.draft_key,
                     height=120,
                     label_visibility="collapsed",
-                    placeholder="先回忆一下当时发生了什么，你可以随便讲，我来帮你整理。",
+                    placeholder="你可以先随便讲，也可以点上面的切入口。我先帮你把内容讲顺，再慢慢提炼亮点。",
                 )
             with mic_col:
                 components.html(
@@ -525,9 +571,9 @@ def _previous_steps_done(step: StepKey, statuses: dict[StepKey, bool]) -> bool:
 def main() -> None:
     st.set_page_config(
         page_title="know yourself before you find a job",
-        page_icon="🧭",
         layout="wide",
     )
+    inject_global_styles()
     st.title("know yourself before you find a job")
     st.caption("A candidate development prototype that judges first, fills evidence gaps second, and rewrites last.")
 

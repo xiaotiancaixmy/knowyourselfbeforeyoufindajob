@@ -83,6 +83,10 @@ class WorkflowService:
         self._ensure_fact_completion_chat_seed(experience)
         return signal, questions
 
+    def get_fact_completion_entry_choices(self, experience_id: int):
+        experience = self._require_experience(experience_id)
+        return self.followup_question_service.build_entry_choices(experience)
+
     def submit_fact_completion_answer(self, experience_id: int, answer: str) -> tuple[ExperienceRecord, str, list[str]]:
         experience = self._require_experience(experience_id)
         self.repository.create_chat_turn(StepKey.FACT_COMPLETION, "user", answer, experience_id)

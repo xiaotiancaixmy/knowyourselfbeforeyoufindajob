@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from src.models.domain import EvidenceGap, ExperienceRecord
+
+
+@dataclass(frozen=True)
+class FactCompletionEntryChoice:
+    label: str
+    draft: str
 
 
 QUESTION_LADDERS = {
@@ -58,8 +66,9 @@ class FollowupQuestionService:
 
     def build_warm_start(self, experience: ExperienceRecord) -> str:
         return (
-            f"我们先回到当时，回到 `{experience.company}` 这段经历的场景。"
-            " 先不用急着讲亮点，你先用自己的方式说说，当时大概是在做一件什么事。"
+            f"让我们开始回忆你在 `{experience.company}` 都做过什么。"
+            " 很多时候你其实做了不少，只是一下子不知道该怎么表达，没关系，我会陪你一起收敛。"
+            " 你可以先随便讲，也可以先选一个更接近的切入口开始。"
         )
 
     def build_reflection(self, experience: ExperienceRecord) -> str:
@@ -93,6 +102,65 @@ class FollowupQuestionService:
             return "这段已经比较完整了。"
         return f"如果从 hiring 视角再往前走一步，我下一轮最想补的是：{questions[0]}"
 
+    def build_entry_choices(self, experience: ExperienceRecord) -> list[FactCompletionEntryChoice]:
+        choices: list[FactCompletionEntryChoice] = []
+        if experience.business_context.strip():
+            summary = self._shorten(experience.business_context.strip(), 18)
+            choices.append(
+                FactCompletionEntryChoice(
+                    label="先讲当时在做什么",
+                    draft=(
+                        f"我先从当时在做什么讲起。那时候我们主要在做 {summary}，"
+                        "我当时被拉进来主要是为了把这件事往前推进。"
+                    ),
+                )
+            )
+
+        for responsibility in experience.responsibilities[:2]:
+            cleaned = responsibility.strip()
+            if not cleaned:
+                continue
+            choices.append(
+                FactCompletionEntryChoice(
+                    label=f"先讲：{self._shorten(cleaned, 14)}",
+                    draft=(
+                        f"如果先讲我自己做的部分，我会先从「{cleaned}」讲起。"
+                        "这块当时我主要负责的是"
+                    ),
+                )
+            )
+
+        if experience.outcomes:
+            outcome = experience.outcomes[0].strip()
+            if outcome:
+                choices.append(
+                    FactCompletionEntryChoice(
+                        label="先讲结果最明显的一段",
+                        draft=(
+                            f"如果先讲最有结果感的一段，应该是「{self._shorten(outcome, 18)}」背后的那次推进。"
+                            "我当时主要做的是"
+                        ),
+                    )
+                )
+
+        choices.append(
+            FactCompletionEntryChoice(
+                label="先讲最卡的一段",
+                draft="如果先从最卡的一段开始讲，当时最不顺的地方其实是",
+            )
+        )
+
+        deduped: list[FactCompletionEntryChoice] = []
+        seen_labels: set[str] = set()
+        for choice in choices:
+            if choice.label in seen_labels:
+                continue
+            seen_labels.add(choice.label)
+            deduped.append(choice)
+            if len(deduped) >= 4:
+                break
+        return deduped
+
     def _build_plain_signal(self, experience: ExperienceRecord) -> str:
         if experience.outcomes and len(experience.responsibilities) >= 2:
             return "用白话说，这里已经能看出你不是只在执行，而是在把事情往前推，而且开始有结果感了。"
@@ -125,3 +193,8 @@ class FollowupQuestionService:
             + [experience.business_context]
         ).lower()
         return any(keyword.lower() in tokens for keyword in keywords)
+
+    def _shorten(self, text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+        return text[:limit].rstrip() + "..."
