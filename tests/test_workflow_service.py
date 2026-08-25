@@ -81,11 +81,20 @@ Beta | Product Manager | 2020-2022
 
         turns = self.workflow.list_fact_completion_chat(experience_id)
         self.assertEqual(len(turns), 1)
-        self.assertIn("回到当时", turns[0]["content"])
+        self.assertIn("让我们开始回忆", turns[0]["content"])
         self.assertNotIn("为什么不是另一个方案", turns[0]["content"])
         self.assertFalse(self.workflow.should_reveal_fact_completion_gaps(experience_id))
         self.assertTrue(signal)
         self.assertTrue(questions)
+
+    def test_fact_completion_provides_entry_choices(self) -> None:
+        experience_id = self._create_selected_experience()
+
+        choices = self.workflow.get_fact_completion_entry_choices(experience_id)
+
+        self.assertGreaterEqual(len(choices), 2)
+        self.assertTrue(any("先讲当时在做什么" == choice.label for choice in choices))
+        self.assertTrue(any(choice.draft for choice in choices))
 
     def test_fact_completion_reflects_before_deeper_follow_up(self) -> None:
         experience_id = self._create_selected_experience()
@@ -135,7 +144,7 @@ Beta | Product Manager | 2020-2022
 
         turns = self.workflow.list_fact_completion_chat(experience_id)
         self.assertEqual(len(turns), 1)
-        self.assertIn("回到当时", turns[0]["content"])
+        self.assertIn("让我们开始回忆", turns[0]["content"])
 
 
 if __name__ == "__main__":
